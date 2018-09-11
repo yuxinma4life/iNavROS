@@ -20,6 +20,8 @@
 #include <serial/serial.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Empty.h>
+#include <sensor_msgs/NavSatFix.h>
+#include <geometry_msgs/Vector3.h>
 
 #define LIGHTTELEMETRY_START1 0x24 //$
 #define LIGHTTELEMETRY_START2 0x54 //T
@@ -65,6 +67,11 @@ static uint8_t LTMrcvChecksum;
 static uint8_t LTMreadIndex;
 static uint8_t LTMframelength;
 serial::Serial ser;
+
+
+//published topic contents
+sensor_msgs::NavSatFix fix;
+geometry_msgs::Vector3 attitude;
 
 void write_callback(const std_msgs::String::ConstPtr& msg){
 	ROS_INFO_STREAM("Writing to serial port" << msg->data);
@@ -196,8 +203,35 @@ void ltm_read() {
   }
 }
 
+void convertToRotation(){
+// int16_t      uav_pitch = 0;                  // attitude pitch
+// int16_t      uav_roll = 0;                   // attitude roll
+// int16_t      uav_heading = 0;                // attitude heading
+// int16_t      uav_gpsheading=0; 
+	attitude.x = (float)uav_pitch;
+	attitude.y = (float)uav_roll;
+	attitude.z = (float)uav_heading;
 
+}
 
+void convertToNavSatFix(){
+// int32_t      uav_lat = 0;                    // latitude
+// int32_t      uav_lon = 0;                    // longitude
+// float        lonScaleDown=0.0;               // longitude scaling
+// uint8_t      uav_satellites_visible = 0;     // number of satellites
+// uint8_t      uav_fix_type = 0;               // GPS lock 0-1=no fix, 2=2D, 3=3D
+// int32_t      uav_alt = 0;                    // altitude (dm)
+// int32_t      rel_alt = 0;                    // relative altitude to home
+	fix.latitude = (float)uav_lat*10000000;
+	fix.longitude = (float)uav_lon*10000000;
+	fix.altitude = (float)uav_alt/10;
+
+}
+
+void processLTM(){
+	convertToNavSatFix();
+	convertToRotation();
+}
 
 
 
@@ -207,6 +241,8 @@ int main (int argc, char** argv){
 
 	ros::Subscriber write_sub = nh.subscribe("write", 1000, write_callback);
 	ros::Publisher read_pub = nh.advertise<std_msgs::String>("read", 1000);
+	ros::Publisher gps_pub = nh.advertise<sensor_msgs::NavSatFix>("fix", 1000);
+	ros::Publisher attitude_pub = nh.advertise<geometry_msgs::Vector3>("attitude", 1000);
 
 	try
 	{
@@ -233,14 +269,10 @@ int main (int argc, char** argv){
 
 		ros::spinOnce();
 		ltm_read();
-		ROS_INFO_STREAM("Read: " << uav_pitch);
-		// if(ser.available()){
-		// 	ROS_INFO_STREAM("Reading from serial port");
-		// 	std_msgs::String result;
-		// 	result.data = ser.read(ser.available());
-		// 	ROS_INFO_STREAM("Read: " << result.data);
-		// 	read_pub.publish(result);
-		// }
+		processLTM();
+		gps_pub.publish(fix);
+		attitude_pub.publish(attitude);
+		//ROS_INFO_STREAM("Read: " << uav_pitch);
 		loop_rate.sleep();
 
 	}

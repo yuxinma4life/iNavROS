@@ -5,12 +5,14 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   serial
   std_msgs
+  geometry_msgs
 )
 
 catkin_package(
   CATKIN_DEPENDS
     serial
     std_msgs
+    geometry_msgs
 )
 
 include_directories(
